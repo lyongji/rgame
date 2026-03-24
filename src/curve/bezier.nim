@@ -1,7 +1,7 @@
 ##
-## Bezier curve library
+## 贝塞尔曲线库
 ##
-## Based off the work found here:
+## 基于以下工作：
 ## * https://pomax.github.io/bezierinfo/
 ## * https://pomax.github.io/bezierjs/
 ## * https://github.com/Pomax/bezierjs
@@ -12,15 +12,15 @@ import vmath, sequtils, algorithm, bezier/util, options
 
 type
     Bezier*[N: static[int]] = object
-        ## A bezier curve of order `N`
+        ## 阶数为 `N` 的贝塞尔曲线
         points: array[N + 1, Vec2]
 
     DynBezier* = object
-        ## Bezier curve where the order isn't known at compile time
+        ## 阶数在编译时未知的贝塞尔曲线
         points: seq[Vec2]
 
     LUT*[T: Bezier | DynBezier] {.byref.} = object
-        ## A lookup table of precalculated points within a curve
+        ## 曲线内预计算点的查找表
         table: seq[tuple[t: float, point: Vec2, distanceFrom0: float]]
         curve: T
 
@@ -29,26 +29,30 @@ template assign(points: typed) =
         result.points[i] = points[i]
 
 proc newBezier*[N](points: varargs[Vec2]): Bezier[N] =
-    ## Creates a new Bezier curve where the curve order is known at build time. For example,
-    ## passing in `N = 3` is a cubic curve.
+    ## 创建一个新的贝塞尔曲线，曲线阶数在编译时已知。例如，传入 `N = 3` 表示三次曲线。
+    # 函数名：newBezier - 创建新贝塞尔曲线
     assert(points.len == N + 1)
     assign(points)
 
 proc newDynBezier*(points: varargs[Vec2]): DynBezier =
-    ## Creates a new Bezier curve where the curve order is only known at runtime
+    ## 创建一个新的贝塞尔曲线，曲线阶数仅在运行时已知。
+    # 函数名：newDynBezier - 创建动态贝塞尔曲线
     result.points.setLen(points.len)
     assign(points)
 
 proc order*(curve: DynBezier): Natural = curve.points.len - 1
-    ## The order of the curve is the number of points used to define the curve, starting at 0.
-    ## `N = 1` is linear (2 points), `N = 2` is quadratic (3 points), `N = 3` is cubic (4 points)
+    ## 曲线的阶数是定义曲线所用的点数，从0开始。
+    ## `N = 1` 是线性（2个点），`N = 2` 是二次（3个点），`N = 3` 是三次（4个点）
+    # 函数名：order - 获取曲线阶数
 
 proc order*[N](curve: Bezier[N]): Natural = N
-    ## The order of the curve is the number of points used to define the curve, starting at 0.
-    ## `N = 1` is linear (2 points), `N = 2` is quadratic (3 points), `N = 3` is cubic (4 points)
+    ## 曲线的阶数是定义曲线所用的点数，从0开始。
+    ## `N = 1` 是线性（2个点），`N = 2` 是二次（3个点），`N = 3` 是三次（4个点）
+    # 函数名：order - 获取曲线阶数
 
 proc `$`*(curve: Bezier | DynBezier): string =
-    ## Create a string representation of a bezier curve
+    ## 创建贝塞尔曲线的字符串表示
+    # 函数名：`$` - 转换为字符串
     result = "Bezier["
     var first = true
     for point in curve.points:
@@ -64,23 +68,27 @@ proc `$`*(curve: Bezier | DynBezier): string =
     result.add("]")
 
 proc `[]`*[N](curve: Bezier[N], point: range[0..N]): Vec2 = curve.points[point]
-    ## Returns a control point within this curve
+    ## 返回该曲线内的一个控制点
+    # 函数名：`[]` - 下标访问控制点
 
 proc `[]`*(curve: DynBezier, point: Natural): Vec2 = curve.points[point]
-    ## Returns a control point within this curve
+    ## 返回该曲线内的一个控制点
+    # 函数名：`[]` - 下标访问控制点
 
 iterator pairs*(curve: DynBezier | Bezier): (int, Vec2) =
-    ## Produces all the points in this curve as well as their index
+    ## 生成该曲线中的所有点及其索引
+    # 函数名：pairs - 迭代控制点（带索引）
     for i in 0..curve.order:
         yield (i, curve.points[i])
 
 iterator items*(curve: DynBezier | Bezier): lent Vec2 =
-    ## Produces all the points in this curve
+    ## 生成该曲线中的所有点
+    # 函数名：items - 迭代控制点
     for i in 0..curve.order:
         yield curve.points[i]
 
 template mapItTpl[OutputType](order, curve: typed, mapper: untyped): OutputType =
-    ## Applies a mapping function to the points in this curve
+    ## 将映射函数应用于曲线中的点
     block:
         var output: OutputType
         when compiles(output.points.setLen(order + 1)): output.points.setLen(order + 1)
@@ -90,13 +98,13 @@ template mapItTpl[OutputType](order, curve: typed, mapper: untyped): OutputType 
         output
 
 template mapIt*[N](curve: Bezier[N], mapper: untyped): Bezier[N] =
-    ## Applies a mapping function to the points in this curve. Within the mapping block, a
-    ## variable named `it` will be injected with the current point
+    ## 将映射函数应用于曲线中的点。在映射块内，名为 `it` 的变量将被注入当前点。
+    # 函数名：mapIt - 映射控制点
     mapItTpl[Bezier[N]](N, curve, mapper)
 
 template mapIt*(curve: DynBezier, mapper: untyped): DynBezier =
-    ## Applies a mapping function to the points in this curve. Within the mapping block, a
-    ## variable named `it` will be injected with the current point
+    ## 将映射函数应用于曲线中的点。在映射块内，名为 `it` 的变量将被注入当前点。
+    # 函数名：mapIt - 映射控制点
     mapItTpl[DynBezier](curve.order, curve, mapper)
 
 proc computeForQuadOrCubic(p0, p1, p2, p3: Vec2; a, b, c, d: float): Vec2 {.inline.} =
@@ -133,7 +141,8 @@ proc computeForCubic(curve: Bezier | DynBezier, t: float): Vec2 {.inline.} =
     )
 
 proc compute*[N](curve: Bezier[N], t: float): Vec2 =
-    ## Computes the position of a point along the curve, where `t` is a value between 0.0 and 1.0.
+    ## 计算曲线上一点的位置，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：compute - 计算曲线上的点
     when N == 0: return curve.points[0]
     elif N == 1: return computeForLinear(curve, t)
     elif N == 2: return computeForQuad(curve, t)
@@ -141,7 +150,8 @@ proc compute*[N](curve: Bezier[N], t: float): Vec2 =
     else: return deCasteljau(curve.points, t).finalPoint
 
 proc compute*(curve: DynBezier, t: float): Vec2 =
-    ## Computes the position of a point along the curve, where `t` is a value between 0.0 and 1.0.
+    ## 计算曲线上一点的位置，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：compute - 计算曲线上的点
     case curve.order
     of 0: return curve.points[0]
     of 1: return computeForLinear(curve, t)
@@ -154,16 +164,20 @@ template xyTpl(curve: typed, prop: untyped) =
     for i, point in curve: result[i] = point.`prop`
 
 proc xs*[N](curve: Bezier[N]): array[N + 1, float] = xyTpl(curve, x)
-    ## Returns all x values from the points in this curve
+    ## 返回该曲线中所有点的 x 值
+    # 函数名：xs - 获取所有 x 坐标
 
 proc xs*(curve: DynBezier): seq[float] = xyTpl(curve, x)
-    ## Returns all x values from the points in this curve
+    ## 返回该曲线中所有点的 x 值
+    # 函数名：xs - 获取所有 x 坐标
 
 proc ys*[N](curve: Bezier[N]): array[N + 1, float] = xyTpl(curve, y)
-    ## Returns all y values from the points in this curve
+    ## 返回该曲线中所有点的 y 值
+    # 函数名：ys - 获取所有 y 坐标
 
 proc ys*(curve: DynBezier): seq[float] = xyTpl(curve, y)
-    ## Returns all y values from the points in this curve
+    ## 返回该曲线中所有点的 y 值
+    # 函数名：ys - 获取所有 y 坐标
 
 template derivativeTpl(curve: typed) =
     for i in 0..<curve.order:
@@ -171,14 +185,16 @@ template derivativeTpl(curve: typed) =
     return output
 
 proc derivative*[N](curve: Bezier[N]): auto =
-    ## Computes the derivative of a bezier curve. The result of this is a new bezier curve with an order of N - 1
-    when N <= 0: {.error( "Can not take the derivative of a constant curve").}
+    ## 计算贝塞尔曲线的导数。结果是一条阶数为 N-1 的新贝塞尔曲线。
+    # 函数名：derivative - 求导
+    when N <= 0: {.error( "不能对常数曲线求导").}
     var output: Bezier[N - 1]
     derivativeTpl(curve)
 
 proc derivative*(curve: DynBezier): DynBezier =
-    ## Computes the derivative of a bezier curve. The result of this is a new bezier curve with an order of N - 1
-    assert(curve.order > 0, "Can not take the derivative of a constant curve")
+    ## 计算贝塞尔曲线的导数。结果是一条阶数为 N-1 的新贝塞尔曲线。
+    # 函数名：derivative - 求导
+    assert(curve.order > 0, "不能对常数曲线求导")
     var output: DynBezier
     output.points.setLen(curve.points.len - 1)
     derivativeTpl(curve)
@@ -200,17 +216,17 @@ template extremaTpl(curve: typed) =
     yieldAll(forDistinct(output))
 
 iterator extrema*[N](curve: Bezier[N]): float =
-    ## Calculates all the extrema on a curve, expressed as a location between 0.0 and 1.0. You can feed these values
-    ## into the `compute` method to get their coordinates
+    ## 计算曲线上的所有极值点，表示为 0.0 到 1.0 之间的位置。可以将这些值传递给 `compute` 方法获取它们的坐标。
+    # 函数名：extrema - 获取极值点参数 t
     when N > 1: extremaTpl(curve)
 
 iterator extrema*(curve: DynBezier): float = extremaTpl(curve)
-    ## Calculates all the extrema on a curve, expressed as a location between 0.0 and 1.0. You can feed these values
-    ## into the `compute` method to get their coordinates
+    ## 计算曲线上的所有极值点，表示为 0.0 到 1.0 之间的位置。可以将这些值传递给 `compute` 方法获取它们的坐标。
+    # 函数名：extrema - 获取极值点参数 t
 
 proc boundingBox*(curve: Bezier | DynBezier): tuple[minX, minY, maxX, maxY: float] =
-    ## Returns the bounding box for a curve
-
+    ## 返回曲线的包围盒
+    # 函数名：boundingBox - 计算包围盒
     result = (curve.points[0].x.float, curve.points[0].y.float, curve.points[0].x.float, curve.points[0].y.float)
 
     if curve.order > 0:
@@ -225,7 +241,7 @@ proc boundingBox*(curve: Bezier | DynBezier): tuple[minX, minY, maxX, maxY: floa
             curve.compute(extrema).handlePoint(result)
 
 template withAligned(curve: Bezier | DynBezier, p1, p2: Vec2, exec: untyped) =
-    ## Execute a callback for code that needs to use a bezier curve aligned to a point with extra details
+    ## 执行回调，该回调需要一条与某点对齐的贝塞尔曲线，并提供额外的细节。
     let ang = -arctan2(p2.y - p1.y, p2.x - p1.x)
     let cosA {.inject.} = cos(ang)
     let sinA {.inject.} = sin(ang)
@@ -234,11 +250,13 @@ template withAligned(curve: Bezier | DynBezier, p1, p2: Vec2, exec: untyped) =
     exec
 
 proc align*(curve: Bezier | DynBezier, p1, p2: Vec2): auto =
-    ## Rotates this bezier curve so it aligns with the given line
+    ## 旋转该贝塞尔曲线，使其与给定直线对齐。
+    # 函数名：align - 对齐曲线
     withAligned(curve, p1, p2): return aligned
 
 proc tightBoundingBox*(curve: Bezier | DynBezier): array[4, Vec2] =
-    ## Returns the corners of a bounding box that is tightly aligned to a curve
+    ## 返回一个紧密贴合曲线的包围盒的四个角点。
+    # 函数名：tightBoundingBox - 计算紧密包围盒
     if curve.order == 0:
         for i in 0..3: result[i] = curve.points[0]
     else:
@@ -254,8 +272,8 @@ proc tightBoundingBox*(curve: Bezier | DynBezier): array[4, Vec2] =
             result[3] = corner(minX, maxY)
 
 iterator findY*(curve: Bezier | DynBezier, x: float): Vec2 =
-    ## Produces the Y values for a given X. This can produce multiple values because a bezier curve may
-    ## have multiple intersections with the same `x` value
+    ## 对于给定的 X 值，产生对应的 Y 值。因为贝塞尔曲线可能与同一个 `x` 值有多个交点，所以可能产生多个值。
+    # 函数名：findY - 根据 X 查找 Y
     if curve.order == 0:
         if x == curve.points[0].x:
             yield curve.points[0]
@@ -267,19 +285,22 @@ iterator findY*(curve: Bezier | DynBezier, x: float): Vec2 =
             yield curve.compute(root)
 
 proc findMaxY*(curve: Bezier | DynBezier, x: float): Option[Vec2] =
-    ## Finds the maximum `y` on a curve for a given `x`.
+    ## 对于给定的 `x`，找到曲线上的最大 `y` 值。
+    # 函数名：findMaxY - 根据 X 查找最大 Y
     for point in findY(curve, x):
         if result.isNone or point.y > result.unsafeGet.y:
             result = some(point)
 
 proc findMinY*(curve: Bezier | DynBezier, x: float): Option[Vec2] =
-    ## Finds the maximum `y` on a curve for a given `x`.
+    ## 对于给定的 `x`，找到曲线上的最小 `y` 值。
+    # 函数名：findMinY - 根据 X 查找最小 Y
     for point in findY(curve, x):
         if result.isNone or point.y < result.unsafeGet.y:
             result = some(point)
 
 iterator points*(curve: Bezier | DynBezier, steps: range[2..high(int)]): tuple[t: float, point: Vec2] =
-    ## Produces a set of points along the curve at the given number of steps
+    ## 按给定的步数在曲线上生成一系列点。
+    # 函数名：points - 迭代曲线上的点
     let step: float = 1 / (steps - 1)
     var t: float = 0
     for i in 1..steps:
@@ -289,8 +310,8 @@ iterator points*(curve: Bezier | DynBezier, steps: range[2..high(int)]): tuple[t
         t += step
 
 iterator segments*(curve: Bezier | DynBezier, steps: Positive): (Vec2, Vec2) =
-    ## Breaks the curve into straight lines. Also known as flattening the curve. These lines are not guaranteed
-    ## to be geometrically even.
+    ## 将曲线分解为直线段。也称为曲线展平。这些线段不保证几何均匀。
+    # 函数名：segments - 迭代曲线分段
     if curve.order > 0:
         var previous: Vec2
         for (t, current) in points(curve, steps + 1):
@@ -299,17 +320,20 @@ iterator segments*(curve: Bezier | DynBezier, steps: Positive): (Vec2, Vec2) =
             previous = current
 
 proc tangent*(curve: Bezier | DynBezier, t: float): Vec2 =
-    ## Returns the tangent vector at a given location, where `t` is a value between 0.0 and 1.0
+    ## 返回给定位置处的切向量，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：tangent - 计算切向量
     curve.derivative().compute(t)
 
 proc normal*(curve: Bezier | DynBezier, t: float): Vec2 =
-    ## Returns the tangent vector at a given location, where `t` is avalue between 0.0 and 1.0
+    ## 返回给定位置处的法向量，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：normal - 计算法向量
     let d = curve.tangent(t)
     let q = sqrt(d.x * d.x + d.y * d.y)
     return vec2(-d.y / q, d.x / q)
 
 iterator intersects*(curve: Bezier | DynBezier, p1, p2: Vec2): Vec2 =
-    ## Yields the points where a curve intersects a line
+    ## 生成曲线与直线相交的点。
+    # 函数名：intersects - 迭代交点
     case curve.order
     of 0:
         if curve.points[0].isOnLine(p1, p2):
@@ -331,12 +355,14 @@ template splitTpl(curve, t: typed) =
         result[1].points[i] = point
 
 proc split*[N](curve: Bezier[N], t: float): (Bezier[N], Bezier[N]) =
-    ## Splits the curve at the given location, where `t` is avalue between 0.0 and 1.0
-    when N == 0: {.error("Cannot split a 0 order curve").}
+    ## 在给定位置分割曲线，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：split - 分割曲线
+    when N == 0: {.error("不能分割零阶曲线").}
     else: splitTpl(curve, t)
 
 proc split*(curve: DynBezier, t: float): (DynBezier, DynBezier) =
-    ## Splits the curve at the given location, where `t` is avalue between 0.0 and 1.0
+    ## 在给定位置分割曲线，其中 `t` 是介于 0.0 和 1.0 之间的值。
+    # 函数名：split - 分割曲线
     assert(curve.order > 0)
     result[0].points.setLen(curve.points.len)
     result[1].points.setLen(curve.points.len)
@@ -400,8 +426,8 @@ const Cvalues = [
 ]
 
 proc length*(curve: Bezier | DynBezier): float =
-    ## Calculates the length of a curve. This can be expensive, so if you need a faster version consider
-    ## using `approxLen` instead.
+    ## 计算曲线的长度。计算开销较大，如果需要更快的版本，可以考虑使用 `approxLen`。
+    # 函数名：length - 计算曲线长度（精确）
     result = 0
     when compiles(curve.derivative()):
         if curve.order > 0:
@@ -415,13 +441,14 @@ proc length*(curve: Bezier | DynBezier): float =
             result *= z
 
 proc approxLen*(curve: Bezier | DynBezier, steps: Positive): float =
-    ## Calculates the approximate length of a curve. This is a faster algorithm than calling `length` directly
+    ## 计算曲线的近似长度。这比直接调用 `length` 更快。
+    # 函数名：approxLen - 计算曲线近似长度
     for (a, b) in curve.segments(steps):
         result += (b - a).length
 
 proc lut*[T: Bezier | DynBezier](curve: T, steps: range[2..high(int)]): LUT[T] =
-    ## Creates a lookup table of indexes into this curve, where `steps` is the number of points to sample
-    ## along the curve.
+    ## 创建曲线的查找表，`steps` 是沿曲线采样的点数。
+    # 函数名：lut - 创建查找表
     var distanceFrom0: float = 0.0
     result.table = newSeq[(float, Vec2, float)](steps)
     var previous: Vec2
@@ -433,7 +460,8 @@ proc lut*[T: Bezier | DynBezier](curve: T, steps: range[2..high(int)]): LUT[T] =
     result.curve = curve
 
 proc closest[T](lut: LUT[T], point: Vec2): int =
-    ## Returns index of the point on a LUT closest
+    ## 返回查找表上距离给定点最近的点索引
+    # 函数名：closest - 查找最近点索引
     var distance = high(float)
     for i, (_, current, _) in lut.table:
         let currentDist = distSq(point, current)
@@ -442,9 +470,8 @@ proc closest[T](lut: LUT[T], point: Vec2): int =
             result = i
 
 proc project*[T](lut: LUT[T], point: Vec2): float =
-    ## Finds the location on a curve closest to the given point. Returns a value between 0.0 and 1.0 that
-    ## can be fed into the `compute` function
-
+    ## 找到曲线上离给定点最近的位置。返回一个介于 0.0 和 1.0 之间的值，可传递给 `compute` 函数。
+    # 函数名：project - 投影点至曲线
     let closestIdx = lut.closest(point)
 
     let tableLen = lut.table.len.float
@@ -453,7 +480,7 @@ proc project*[T](lut: LUT[T], point: Vec2): float =
     let step = 0.1 / tableLen
 
 
-    # fine check
+    # 精细检查
     var closestDist = distSq(lut.table[closestIdx].point, point) + 1
     var currentT = t1
     var closestT = currentT
@@ -467,14 +494,13 @@ proc project*[T](lut: LUT[T], point: Vec2): float =
     return clamp(closestT, 0.0, 1.0)
 
 proc approxLen*[T](lut: Lut[T]): float = lut.table[lut.table.len - 1].distanceFrom0
-    ## Uses a LUT to determine the approximate length of a curve. This is a bit innacurate, but faster
-    ## than calling `length`
+    ## 使用查找表确定曲线的近似长度。这有点不精确，但比调用 `length` 更快。
+    # 函数名：approxLen - 使用 LUT 计算近似长度
 
 iterator intervals*[T](lut: LUT[T], steps: Positive): Vec2 =
-    ## Produces points along the curve that are more geometrically evenly spaced. They aren't guaranteed to
-    ## be exactly evenly spaced, but they will be better than using `segment`. If you need more accuracy, you
-    ## can increase the sample size of the `LUT`. The argument `steps` is the number of intervals to produce. So
-    ## this iterator will yield `steps + 1` number of points.
+    ## 在曲线上生成几何上更均匀分布的点。不能保证完全均匀，但比使用 `segment` 更好。如果需要更高的精度，可以增加 LUT 的采样点数。
+    ## 参数 `steps` 是要生成的间隔数，因此该迭代器将产生 `steps + 1` 个点。
+    # 函数名：intervals - 迭代均匀间隔点
     let curveLen = lut.approxLen
 
     var pos = 0

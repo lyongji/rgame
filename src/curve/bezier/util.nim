@@ -1,35 +1,36 @@
 import std/math, vmath, options
 
 iterator cubicRoots(pa, pb, pc, pd: float): float =
-    # Cardano's algorithm for calculating roots
+    # 卡尔丹算法求根
+    # 迭代器名：cubicRoots - 三次方程求根（卡尔丹公式）
     block earlyReturn:
         let a = 3 * pa - 6 * pb + 3 * pc
         let b = (-3 * pa + 3 * pb)
         let c = pa
         let d = -pa + 3 * pb - 3 * pc + pd
 
-        # Check to see whether we even need cubic solving:
+        # 检查是否需要三次求解：
         if d.almostEqual 0:
-            # Not a cubic curve.
+            # 不是三次曲线。
 
             if a.almostEqual 0:
-                # Not a quadratic curve either.
+                # 也不是二次曲线。
 
                 if b.almostEqual 0:
-                    # there are no solutions.
+                    # 无解。
                     break earlyReturn
 
-                # linear solution
+                # 线性解
                 yield -c / b
                 break earlyReturn
 
-            # quadratic solution
+            # 二次解
             let q = sqrt(b * b - 4 * a * c)
             yield (q - b) / (2 * a)
             yield (-b - q) / (2 * a)
             break earlyReturn
 
-        # at this point, we know we need a cubic solution.
+        # 此时，我们知道需要三次求解。
 
         let ad = a / d
         let bd = b / d
@@ -41,7 +42,7 @@ iterator cubicRoots(pa, pb, pc, pd: float): float =
         let q2 = q / 2
         let discriminant = q2 * q2 + p3 * p3 * p3
 
-        # three possible real roots:
+        # 三个可能的实根：
         if discriminant < 0:
             let mp3 = -p / 3
             let r = sqrt(mp3 * mp3 * mp3)
@@ -53,13 +54,13 @@ iterator cubicRoots(pa, pb, pc, pd: float): float =
             yield t1 * cos((phi + TAU) / 3) - ad / 3
             yield t1 * cos((phi + 2 * TAU) / 3) - ad / 3
 
-        # three real roots, but two of them are equal:
+        # 三个实根，但有两个相等：
         elif discriminant == 0:
             let u1 = if q2 < 0: cbrt(-q2) else: -cbrt(q2)
             yield 2 * u1 - ad / 3
             yield -u1 - ad / 3
 
-        # one real root, two complex roots
+        # 一个实根，两个复根
         else:
             let sd = sqrt(discriminant)
             let u1 = cbrt(sd - q2)
@@ -67,7 +68,8 @@ iterator cubicRoots(pa, pb, pc, pd: float): float =
             yield u1 - v1 - ad/3
 
 iterator computeRoots[N: static[int]](entries: array[N, float]): float =
-    ## Calculate the roots of the given points
+    ## 计算给定点的根
+    # 迭代器名：computeRoots - 计算根（根据阶数）
     when N > 4:
         {. error("Cannot calculate roots for N over 4") .}
 
@@ -95,7 +97,8 @@ iterator computeRoots[N: static[int]](entries: array[N, float]): float =
             yield a / (a - b)
 
 iterator roots*[N: static[int]](entries: array[N, float]): float =
-    ## Calculate the roots of the given points
+    ## 计算给定点的根
+    # 迭代器名：roots - 计算根（过滤有效区间）
     for root in computeRoots(entries):
         if root ~= 0:
             yield 0
@@ -105,9 +108,11 @@ iterator roots*[N: static[int]](entries: array[N, float]): float =
             yield root
 
 template yieldAll*(iter: untyped) =
+    # 模板名：yieldAll - 展开迭代器中的所有值
     for value in iter: yield value
 
 template forIndexed*(i, value, iter, exec: untyped) =
+    # 模板名：forIndexed - 带索引遍历
     block:
         var i = 0
         for value in iter:
@@ -115,21 +120,25 @@ template forIndexed*(i, value, iter, exec: untyped) =
             i += 1
 
 proc toArray[T](input: seq[T], N: static int): array[N, T] =
+    # 函数名：toArray - 序列转数组
     for i in 0..<N: result[i] = input[i]
 
 iterator roots*(entries: seq[float]): float =
-    ## Calculate the roots of the given points
+    ## 计算给定点的根
+    # 迭代器名：roots - 计算根（序列版本）
     assert(entries.len <= 4, "Can't yet calculate roots for N = " & $entries.len)
     if entries.len == 2: yieldAll(roots(entries.toArray(2)))
     elif entries.len == 3: yieldAll(roots(entries.toArray(3)))
     elif entries.len == 4: yieldAll(roots(entries.toArray(4)))
 
 proc isOnLine*(point, p1, p2: Vec2): bool =
-    # Returns whether `point` is on a line between `p1` and `p2`
+    # 返回 `point` 是否在 `p1` 和 `p2` 的连线上
+    # 函数名：isOnLine - 判断点是否在线段上
     dist(p1, point) + dist(point, p2) == dist(p1, p2)
 
 proc linesIntersect*(p1, p2, p3, p4: Vec2): Option[Vec2] =
-    ## Returns the point at which two lines intersect
+    ## 返回两条直线的交点
+    # 函数名：linesIntersect - 计算两条直线交点
     let d = (p1.x - p2.x) * (p3.y - p4.y) - (p1.y - p2.y) * (p3.x - p4.x)
     if d != 0:
         let nx = (p1.x * p2.y - p1.y * p2.x) * (p3.x - p4.x) - (p1.x - p2.x) * (p3.x * p4.y - p3.y * p4.x)
@@ -137,7 +146,8 @@ proc linesIntersect*(p1, p2, p3, p4: Vec2): Option[Vec2] =
         return some(vec2(nx / d, ny / d))
 
 iterator forDistinct*[T](input: seq[T]): T =
-    ## Loops over the unique values in an input, assuming it has been pre-sorted
+    ## 遍历输入序列中的唯一值，假定已预先排序
+    # 迭代器名：forDistinct - 遍历去重值（需预排序）
     var prev: Option[float]
     for value in input:
         assert(isNone(prev) or isSome(prev) and unsafeGet(prev) <= value, "Input must be sorted")
@@ -146,15 +156,17 @@ iterator forDistinct*[T](input: seq[T]): T =
         prev = some(value)
 
 type DeCasteljau* {.byref.} = object
-    ## The results of a de Casteljau execution against a set of points
+    ## 对一组点执行 de Casteljau 算法的结果
+    # 类型名：DeCasteljau - de Casteljau 算法结果
     points: seq[Vec2]
     originalLen: Positive
 
 proc deCasteljau*(points: openarray[Vec2], t: float): DeCasteljau =
-    ## Uses de Casteljau's algorithm to determine the location of 't' on a curve
+    ## 使用 de Casteljau 算法确定曲线上 't' 的位置
+    # 函数名：deCasteljau - 执行 de Casteljau 算法
     var buffer = newSeq[Vec2](points.len * (points.len + 1) div 2)
 
-    # Start by filling the buffer with the input points
+    # 用输入点填充缓冲区
     for i, value in points: buffer[i] = value
 
     var inputs = (start: 0, len: points.len)
@@ -170,17 +182,20 @@ proc deCasteljau*(points: openarray[Vec2], t: float): DeCasteljau =
     return DeCasteljau(points: buffer, originalLen: points.len)
 
 proc finalPoint*(calculated: DeCasteljau): Vec2 = calculated.points[calculated.points.len - 1]
-    ## Returns the caluclated result of running de Casteljau's algorithm
+    ## 返回运行 de Casteljau 算法的计算结果
+    # 函数名：finalPoint - 获取最终点
 
 iterator left*(calculated: DeCasteljau): Vec2 =
-    ## Yields the left-hand set of points for splitting a curve
+    ## 生成分割曲线的左侧点集
+    # 迭代器名：left - 获取左侧点集
     var index = 0
     for step in countDown(calculated.originalLen.int, 1):
         yield calculated.points[index]
         index += step
 
 iterator right*(calculated: DeCasteljau): Vec2 =
-    ## Yields the right-hand set of points for splitting a curve
+    ## 生成分割曲线的右侧点集
+    # 迭代器名：right - 获取右侧点集
     var index = calculated.points.len - 1
     for step in 1..calculated.originalLen:
         yield calculated.points[index]
