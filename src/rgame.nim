@@ -1,4 +1,5 @@
 import raylib
+import vmath_raylib
 import curve/bezier  # 假设 bezier 模块位于上一级目录，根据实际路径调整
 import vmath
 # ----------------------------------------------------------------------------------------
@@ -37,9 +38,9 @@ proc main =
 
     # 绘制网格背景
     for x in countup(0, screenWidth, 50):
-      drawLine(x.int32, 0.int32, x.int32, screenHeight, LightGray)
+      drawLine(x.int32, 0, x.int32, screenHeight, LightGray)
     for y in countup(0, screenHeight, 50):
-      drawLine(0.int32, y.int32, screenWidth, y.int32, LightGray)
+      drawLine(0, y.int32, screenWidth, y.int32, LightGray)
 
     # 3. 绘制贝塞尔曲线（通过分段直线近似）
     let segments = 50
@@ -47,12 +48,12 @@ proc main =
     for i in 1..segments:
       let t = i.float / segments.float
       let currentPoint = curve.compute(t)
-      drawLine(prevPoint.x.int32, prevPoint.y.int32, currentPoint.x.int32, currentPoint.y.int32, Maroon)
+      drawLine(prevPoint, currentPoint, Maroon)
       prevPoint = currentPoint
 
     # 4. 绘制控制点
     for point in curve:
-      drawCircle(point.x.int32, point.y.int32, 15, Red)
+      drawCircle(point, 15, Red)
 
     # 5. 显示文本
     drawText("Basic shapes and Bezier curve", 190, 200, 20, LightGray)
