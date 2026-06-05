@@ -20,10 +20,11 @@ proc main =
   initWindow(screenWidth, screenHeight, "raylib [core] example - basic window")
   defer: closeWindow()
   setTargetFPS(60)
-
+  
   # 定义贝塞尔曲线（三次贝塞尔曲线，4个控制点）
   let curve = newBezier[3](vec2(100.0, 500.0), vec2(200, 100), vec2(400, 100), vec2(500, 500))
-
+  var 测试 =1
+  echo 测试
   # --------------------------------------------------------------------------------------
   # Main game loop
   while not windowShouldClose(): # Detect window close button or ESC key
@@ -35,7 +36,6 @@ proc main =
     # ------------------------------------------------------------------------------------
     beginDrawing()
     clearBackground(Black)
-
     # 绘制网格背景
     for x in countup(0, screenWidth, 50):
       drawLine(x.int32, 0, x.int32, screenHeight, LightGray)

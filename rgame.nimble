@@ -10,6 +10,8 @@ bin           = @["rgame"]
 
 # Dependencies
 
-requires "nim >= 2.2.8"
+requires "nim >= 2.2.10"
 requires "naylib"
 requires "vmath"
+requires "nimib"
+
