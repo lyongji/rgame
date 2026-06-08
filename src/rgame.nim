@@ -1,5 +1,5 @@
 import raylib
-import vmath_raylib
+import mymath/vmath_raylib
 import curve/bezier  # 假设 bezier 模块位于上一级目录，根据实际路径调整
 import vmath
 # ----------------------------------------------------------------------------------------
