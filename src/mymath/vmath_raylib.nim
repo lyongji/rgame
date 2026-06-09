@@ -1,30 +1,35 @@
-# vmath_raylib.nim
-# ============================================================================
-# vmath ↔ raylib 类型自动转换绑定
-#
-# 提供 vmath（行优先、泛型数学库）与 raylib（C 绑定、列优先）之间的
-# 函数式转换和可选的隐式转换器。所有向量/四元数转换均为零拷贝 cast。
-#
-# 类型对应:
-#   vmath          raylib
-#   ────────────   ────────────
-#   Vec2      ←→   Vector2      (零拷贝 · 同布局)
-#   Vec3      ←→   Vector3      (零拷贝 · 同布局)
-#   Vec4      ←→   Vector4      (零拷贝 · 同布局)
-#   Quat      ←→   Quaternion   (零拷贝 · 同布局)
-#   Vec4      ←→   Rectangle    (零拷贝 · x/y/width/height)
-#   Mat4      ←→   Matrix       (显式转置 · 行优先↔列优先)
-#   DMat4      →   Matrix       (显式转置 · float64→float32)
-#   Color      →   uint32/Vec4  (便捷辅助)
-#
-# 用法:
-#   import vmath_raylib
-#   let rv: Vector3 = myVec3.toRaylib()
-#   let vv: Vec3     = myVector3.toVmath()
-#
-# 启用隐式转换器（谨慎使用，可能引发歧义错误）:
-#   默认启用。禁用: -d:vmrayNoConverters
-# ============================================================================
+## vmath ↔ raylib 类型自动转换绑定模块
+##
+## 提供 vmath（行优先、泛型数学库）与 raylib（C 绑定、列优先）之间的
+## 函数式转换和可选的隐式转换器。所有向量/四元数转换均为零拷贝 cast。
+##
+## 类型对应
+## ==========
+##
+##   vmath          raylib
+##   ────────────   ────────────
+##   Vec2      ←→   Vector2      (零拷贝 · 同布局)
+##   Vec3      ←→   Vector3      (零拷贝 · 同布局)
+##   Vec4      ←→   Vector4      (零拷贝 · 同布局)
+##   Quat      ←→   Quaternion   (零拷贝 · 同布局)
+##   Vec4      ←→   Rectangle    (零拷贝 · x/y/width/height)
+##   Mat4      ←→   Matrix       (显式转置 · 行优先↔列优先)
+##   DMat4      →   Matrix       (显式转置 · float64→float32)
+##   Color      →   uint32/Vec4  (便捷辅助)
+##
+## 快速开始
+## ==========
+##
+##   import mymath/vmath_raylib
+##
+##   # 函数式转换（推荐）
+##   let rv: Vector3 = myVec3.toRaylib()
+##   let vv: Vec3     = myVector3.toVmath()
+##
+##   # 隐式转换器（启用 vmrayNoConverters 禁用）
+##   let rv2: Vector3 = myVec3          # 自动转换
+##   let vv2: Vec3    = myVector3       # 自动转换
+
 import vmath except Vec2, Vec3, Vec4
 import raylib
 
@@ -33,12 +38,13 @@ export vmath except Vec2, Vec3, Vec4
 export raylib
 export vmath.Vec2, vmath.Vec3, vmath.Vec4
 
-# ============================================================================
-# 编译时验证内存布局兼容性
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# 编译时验证
+# ═══════════════════════════════════════════════════
+
 static:
+  ## 编译时验证 vmath 与 raylib 类型的布局兼容性
   # 所有 vmath 模式（array/object/objArray）都应该兼容 raylib 的 {.bycopy.} object
-  # 只要内存布局一致即可安全 cast
 
   # --- float32 向量 ---
   assert sizeof(vmath.Vec2) == sizeof(Vector2), "Vec2 ↔ Vector2 size mismatch"
@@ -62,11 +68,12 @@ static:
   assert sizeof(DVec3) == sizeof(Vector3)*2, "DVec3 size unexpected"
   assert sizeof(DVec4) == sizeof(Vector4)*2, "DVec4 size unexpected"
 
-# ============================================================================
-# 零拷贝转换模板（减少重复代码）
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# 零拷贝转换（Vec2 / Vec3）
+# ═══════════════════════════════════════════════════
 
 template defZeroCopyPair(vmType, rayType, suffix: untyped) =
+  ## 生成零拷贝转换对：toRaylib / toVmath 及可选的隐式转换器
   func toRaylib*(v: vmType): rayType {.inline, noinit.} = cast[rayType](v)
   func toVmath*(v: rayType): vmType {.inline, noinit.} = cast[vmType](v)
 
@@ -77,63 +84,96 @@ template defZeroCopyPair(vmType, rayType, suffix: untyped) =
 defZeroCopyPair(vmath.Vec2, Vector2, Vec2)
 defZeroCopyPair(vmath.Vec3, Vector3, Vec3)
 
-# Vec4 和 Quat 同为 GVec4[float32]，toRaylib 方向不能重载（toVmath 方向可区分 Quaternion/distinct）
-func toRaylib*(v: vmath.Vec4): Vector4 {.inline, noinit.} = cast[Vector4](v)
-func toRaylibQuat*(q: Quat): Quaternion {.inline, noinit.} = cast[Quaternion](q)
-func toVmath*(v: Vector4): vmath.Vec4 {.inline, noinit.} = cast[vmath.Vec4](v)
-func toVmath*(q: Quaternion): Quat {.inline, noinit.} = cast[Quat](q)
+# ═══════════════════════════════════════════════════
+# 零拷贝转换（Vec4 / Quat）
+# ═══════════════════════════════════════════════════
+# Vec4 和 Quat 同为 GVec4[float32]，toRaylib 方向不能重载
+# （toVmath 方向可区分 Quaternion / distinct 类型）
+
+func toRaylib*(v: vmath.Vec4): Vector4 {.inline, noinit.} =
+  ## Vec4 → Vector4（零拷贝）
+  cast[Vector4](v)
+
+func toRaylibQuat*(q: Quat): Quaternion {.inline, noinit.} =
+  ## Quat → Quaternion（零拷贝）
+  cast[Quaternion](q)
+
+func toVmath*(v: Vector4): vmath.Vec4 {.inline, noinit.} =
+  ## Vector4 → Vec4（零拷贝）
+  cast[vmath.Vec4](v)
+
+func toVmath*(q: Quaternion): Quat {.inline, noinit.} =
+  ## Quaternion → Quat（零拷贝）
+  cast[Quat](q)
 
 when not defined(vmrayNoConverters):
-  converter toRayVec4*(v: vmath.Vec4): Vector4 {.inline, noinit.} = cast[Vector4](v)
-  converter toRayQuat*(q: Quat): Quaternion {.inline, noinit.} = cast[Quaternion](q)
-  converter toVmathVec4*(v: Vector4): vmath.Vec4 {.inline, noinit.} = cast[vmath.Vec4](v)
-  converter toVmathQuat*(q: Quaternion): Quat {.inline, noinit.} = cast[Quat](q)
+  converter toRayVec4*(v: vmath.Vec4): Vector4 {.inline, noinit.} =
+    ## Vec4 → Vector4 隐式转换
+    cast[Vector4](v)
 
-# ============================================================================
-# 双精度 → 单精度转换（需要显式值转换）
-# ============================================================================
+  converter toRayQuat*(q: Quat): Quaternion {.inline, noinit.} =
+    ## Quat → Quaternion 隐式转换
+    cast[Quaternion](q)
+
+  converter toVmathVec4*(v: Vector4): vmath.Vec4 {.inline, noinit.} =
+    ## Vector4 → Vec4 隐式转换
+    cast[vmath.Vec4](v)
+
+  converter toVmathQuat*(q: Quaternion): Quat {.inline, noinit.} =
+    ## Quaternion → Quat 隐式转换
+    cast[Quat](q)
+
+# ═══════════════════════════════════════════════════
+# 双精度 → 单精度
+# ═══════════════════════════════════════════════════
 
 func toRaylibDVec2*(v: DVec2): Vector2 {.inline.} =
+  ## DVec2（float64）→ Vector2（float32）
   Vector2(x: v.x.float32, y: v.y.float32)
 
 func toRaylibDVec3*(v: DVec3): Vector3 {.inline.} =
+  ## DVec3（float64）→ Vector3（float32）
   Vector3(x: v.x.float32, y: v.y.float32, z: v.z.float32)
 
 func toRaylibDVec4*(v: DVec4): Vector4 {.inline.} =
+  ## DVec4（float64）→ Vector4（float32）
   Vector4(x: v.x.float32, y: v.y.float32, z: v.z.float32, w: v.w.float32)
 
-# 别名：统一命名风格
+# 统一命名风格
 func toRaylib*(v: DVec2): Vector2 {.inline.} = toRaylibDVec2(v)
 func toRaylib*(v: DVec3): Vector3 {.inline.} = toRaylibDVec3(v)
 func toRaylib*(v: DVec4): Vector4 {.inline.} = toRaylibDVec4(v)
 
-# ============================================================================
-# 单精度 → 双精度转换
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# 单精度 → 双精度
+# ═══════════════════════════════════════════════════
 
 func toVmathDVec2*(v: Vector2): DVec2 {.inline.} =
+  ## Vector2（float32）→ DVec2（float64）
   dvec2(v.x.float64, v.y.float64)
 
 func toVmathDVec3*(v: Vector3): DVec3 {.inline.} =
+  ## Vector3（float32）→ DVec3（float64）
   dvec3(v.x.float64, v.y.float64, v.z.float64)
 
 func toVmathDVec4*(v: Vector4): DVec4 {.inline.} =
+  ## Vector4（float32）→ DVec4（float64）
   dvec4(v.x.float64, v.y.float64, v.z.float64, v.w.float64)
 
 func toVmathDQuat*(q: Quaternion): DQuat {.inline.} =
+  ## Quaternion（float32）→ DQuat（float64）
   dquat(q.x.float64, q.y.float64, q.z.float64, q.w.float64)
 
-# 别名：统一命名风格
+# 统一命名风格
 func toVmathD*(v: Vector2): DVec2 {.inline.} = toVmathDVec2(v)
 func toVmathD*(v: Vector3): DVec3 {.inline.} = toVmathDVec3(v)
 func toVmathD*(v: Vector4): DVec4 {.inline.} = toVmathDVec4(v)
 func toVmathD*(q: Quaternion): DQuat {.inline.} = toVmathDQuat(q)
 
-# ============================================================================
-# 矩阵转换（注意列优先 vs 行优先）
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# 矩阵转换（行优先 ↔ 列优先）
+# ═══════════════════════════════════════════════════
 
-# --- vmath Mat4 (行优先) → raylib Matrix (列优先) ---
 func toRaylib*(m: Mat4): Matrix {.inline.} =
   ## 将 vmath 行优先 Mat4 转置为 raylib 列优先 Matrix
   Matrix(
@@ -143,7 +183,6 @@ func toRaylib*(m: Mat4): Matrix {.inline.} =
     m3: m[0,3], m7: m[1,3], m11: m[2,3], m15: m[3,3]
   )
 
-# --- raylib Matrix (列优先) → vmath Mat4 (行优先) ---
 func toVmath*(m: Matrix): Mat4 {.inline.} =
   ## 将 raylib 列优先 Matrix 转置为 vmath 行优先 Mat4
   mat4(
@@ -162,7 +201,6 @@ func toVmathD*(m: Matrix): DMat4 {.inline.} =
     m.m12.float64, m.m13.float64, m.m14.float64, m.m15.float64
   )
 
-# --- vmath DMat4 (double, 行优先) → raylib Matrix (float32, 列优先) ---
 func toRaylib*(m: DMat4): Matrix {.inline.} =
   ## 将 vmath 双精度行优先 DMat4 转为 raylib 单精度列优先 Matrix
   Matrix(
@@ -172,9 +210,26 @@ func toRaylib*(m: DMat4): Matrix {.inline.} =
     m3: m[0,3].float32, m7: m[1,3].float32, m11: m[2,3].float32, m15: m[3,3].float32
   )
 
-# ============================================================================
-# Color 相关便捷转换
-# ============================================================================
+func toRaylib*(m: Mat3): Matrix {.inline.} =
+  ## 将 vmath 行优先 Mat3 转为 raylib Matrix（补齐为单位矩阵第 4 行/列）
+  Matrix(
+    m0: m[0,0], m4: m[1,0], m8:  m[2,0], m12: 0,
+    m1: m[0,1], m5: m[1,1], m9:  m[2,1], m13: 0,
+    m2: m[0,2], m6: m[1,2], m10: m[2,2], m14: 0,
+    m3: 0,      m7: 0,      m11: 0,       m15: 1
+  )
+
+func toVmathMat3*(m: Matrix): Mat3 {.inline.} =
+  ## 将 raylib Matrix 转为 vmath Mat3（提取左上 3×3 子矩阵）
+  mat3(
+    m.m0, m.m1, m.m2,
+    m.m4, m.m5, m.m6,
+    m.m8, m.m9, m.m10
+  )
+
+# ═══════════════════════════════════════════════════
+# Color 便捷转换
+# ═══════════════════════════════════════════════════
 
 func toColor*(hex: uint32): Color {.inline.} =
   ## uint32 hex 颜色 (0xRRGGBBAA) → raylib Color
@@ -190,7 +245,7 @@ func toUint32*(c: Color): uint32 {.inline.} =
   (c.r.uint32 shl 24) or (c.g.uint32 shl 16) or (c.b.uint32 shl 8) or c.a.uint32
 
 func toColor*(v: vmath.Vec4): Color {.inline.} =
-  ## Vec4 (0..1 归一化) → raylib Color (0..255)
+  ## Vec4（分量 0..1 归一化）→ raylib Color（分量 0..255）
   Color(
     r: (v.x * 255).clamp(0, 255).uint8,
     g: (v.y * 255).clamp(0, 255).uint8,
@@ -199,7 +254,7 @@ func toColor*(v: vmath.Vec4): Color {.inline.} =
   )
 
 func toVec4*(c: Color): vmath.Vec4 {.inline.} =
-  ## raylib Color (0..255) → Vec4 (0..1 归一化)
+  ## raylib Color（分量 0..255）→ Vec4（分量 0..1 归一化）
   vec4(
     c.r.float32 / 255.0,
     c.g.float32 / 255.0,
@@ -207,43 +262,25 @@ func toVec4*(c: Color): vmath.Vec4 {.inline.} =
     c.a.float32 / 255.0
   )
 
-# ============================================================================
-# Rectangle 便捷函数
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# Rectangle 便捷构造
+# ═══════════════════════════════════════════════════
 
 func toRect*(x, y, w, h: float32): Rectangle {.inline.} =
+  ## 按坐标和宽高构造 Rectangle
   Rectangle(x: x, y: y, width: w, height: h)
 
 func toRect*(v: vmath.Vec4): Rectangle {.inline.} =
+  ## Vec4（x, y, width, height）→ Rectangle
   Rectangle(x: v.x, y: v.y, width: v.z, height: v.w)
 
 func toVec4*(r: Rectangle): vmath.Vec4 {.inline.} =
+  ## Rectangle → Vec4（x, y, width, height）
   vec4(r.x, r.y, r.width, r.height)
 
-# ============================================================================
-# vmath Mat3 ↔ raylib Matrix
-# ============================================================================
-
-func toRaylib*(m: Mat3): Matrix {.inline.} =
-  ## vmath Mat3 → raylib Matrix（补齐为单位矩阵）
-  Matrix(
-    m0: m[0,0], m4: m[1,0], m8:  m[2,0], m12: 0,
-    m1: m[0,1], m5: m[1,1], m9:  m[2,1], m13: 0,
-    m2: m[0,2], m6: m[1,2], m10: m[2,2], m14: 0,
-    m3: 0,      m7: 0,      m11: 0,       m15: 1
-  )
-
-func toVmathMat3*(m: Matrix): Mat3 {.inline.} =
-  ## raylib Matrix → vmath Mat3（提取左上 3×3 子矩阵）
-  mat3(
-    m.m0, m.m1, m.m2,
-    m.m4, m.m5, m.m6,
-    m.m8, m.m9, m.m10
-  )
-
-# ============================================================================
-# 验证转换正确性
-# ============================================================================
+# ═══════════════════════════════════════════════════
+# 验证测试
+# ═══════════════════════════════════════════════════
 
 when isMainModule:
   import std/math

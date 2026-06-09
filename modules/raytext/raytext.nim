@@ -17,7 +17,7 @@
 ##   绘制文本(df, "你好世界", vec2(100,100), 32, 2, Black)
 
 import raylib
-import std/unicode, std/sets
+import std/unicode, std/intsets
 from std/sugar import collect
 
 # ═══════════════════════════════════════════════════
@@ -59,7 +59,7 @@ type
     ## 初始化只加载基本拉丁 + 常用标点（≈50ms），
     ## 遇到未加载字符时自动追加，已加载字符不重复光栅化。
     字体: Font
-    已加载: HashSet[int32]
+    已加载: IntSet            # 使用位图存储，内存远小于 HashSet
     路径: string
     字号: int32
 
@@ -176,9 +176,10 @@ proc 初始化动态字体*(路径: string, 字号: int32 = 32): 动态字体 =
   ## 创建动态字体，初始只加载基本拉丁 + 常用标点（≈50ms）
   result.路径 = 路径
   result.字号 = 字号
-  result.已加载 = initHashSet[int32]()
+  result.已加载 = initIntSet()
   let 初始码点 = 生成码点列表({r基本拉丁, r常用标点})
-  result.已加载 = 初始码点.toHashSet
+  for c in 初始码点:
+    result.已加载.incl c
   result.字体 = loadFont(路径, 字号, 初始码点)
 
 proc 预加载码点范围*(df: var 动态字体, 子集: set[码点范围]) =
@@ -186,7 +187,10 @@ proc 预加载码点范围*(df: var 动态字体, 子集: set[码点范围]) =
   let 新码点 = 生成码点列表(子集)
   for c in 新码点:
     df.已加载.incl c
-  let 全部 = collect(for cp in df.已加载: cp)
+  # 修复：显式转换为 int32
+  var 全部: seq[int32]
+  for cp in df.已加载:
+    全部.add int32(cp)
   df.字体 = loadFont(df.路径, df.字号, 全部)
 
 proc 预加载文本*(df: var 动态字体, 文本集: openArray[string]) =
@@ -195,7 +199,9 @@ proc 预加载文本*(df: var 动态字体, 文本集: openArray[string]) =
     for r in 文本.toRunes:
       if r.int32 > 0x0020:
         df.已加载.incl r.int32
-  let 全部 = collect(for cp in df.已加载: cp)
+  var 全部: seq[int32]
+  for cp in df.已加载:
+    全部.add int32(cp)
   df.字体 = loadFont(df.路径, df.字号, 全部)
 
 proc 确保已加载*(df: var 动态字体, 文本: string) =
@@ -207,7 +213,9 @@ proc 确保已加载*(df: var 动态字体, 文本: string) =
       df.已加载.incl cp
       有缺失 = true
   if 有缺失:
-    let 全部 = collect(for cp in df.已加载: cp)
+    var 全部: seq[int32]
+    for cp in df.已加载:
+      全部.add int32(cp)
     df.字体 = loadFont(df.路径, df.字号, 全部)
 
 # ═══════════════════════════════════════════════════
