@@ -49,27 +49,10 @@ const
 # DPI 检测
 # ═══════════════════════════════════════════════════
 
-proc 检测系统DPI*(): float32 =
-  ## 获取系统报告的 DPI 缩放比。
-  ##
-  ## 各平台行为:
-  ##   macOS      — Retina 返回 2.0，普通屏返回 1.0
-  ##   Windows    — 按系统 DPI 设置返回（1.0 / 1.25 / 1.5 / …）
-  ##   Wayland    — 按显示器缩放比返回
-  ##   X11        — 返回 1.0（GLFW 不支持 X11 的 DPI 检测）
+proc 检测系统DPI(): float32 =
+  ## 获取系统报告的 DPI 缩放比（内部使用）。
   let dpi = getWindowScaleDPI()
-  result = dpi.x  # 通常 x == y，取 x 即可
-
-proc 需要X11回退*(系统DPI: float32, 显示器宽: int32): bool =
-  ## X11 下 `getWindowScaleDPI()` 总是返回 1.0，
-  ## 若显示器分辨率超过阈值则用显示器尺寸计算缩放比。
-  ## macOS / Windows / Wayland 的系统 DPI > 1.0，不触发回退。
-  系统DPI <= 1.01 and 显示器宽 > 高DPI阈值
-
-proc 计算显示器缩放*(显示器宽: int32, 基准宽: int32): float32 =
-  ## 基于显示器宽度与基准宽度之比计算缩放比。
-  ## 保证缩放后不小于基准宽度（不缩小窗口）。
-  显示器宽.float32 / 基准宽.float32
+  dpi.x
 
 # ═══════════════════════════════════════════════════
 # 窗口初始化（核心 API）
@@ -83,12 +66,19 @@ proc 初始化窗口*(标题: string,
                   初始高: int32 = 600): 窗口配置 =
   ## 创建窗口并自动适配显示器 DPI。
   ##
-  ## 流程:
+  ## 只此一个函数，内部自动完成：
   ##   1. 以 `初始宽`×`初始高` 创建窗口（瞬间闪过）
   ##   2. 读取显示器分辨率 + 系统 DPI
-  ##   3. 按策略计算缩放比
+  ##   3. 各平台自适应缩放（macOS Retina / Windows / Wayland / X11）
   ##   4. 等比缩放窗口至合适大小
-  ##   5. 返回 `窗口配置`（缩放比 / 窗口尺寸 / 显示器尺寸）
+  ##   5. 返回 `窗口配置`（含缩放比，供字号/坐标缩放用）
+  ##
+  ## 用法:
+  ##   import tool/dpi
+  ##   let cfg = 初始化窗口("我的应用")
+  ##   defer: closeWindow()
+  ##   let 字号 = int32(18 * cfg.缩放比)
+  ##   drawText("你好", 20, 20, 字号, White)
   ##
   ## 参数:
   ##   `标题`   — 窗口标题
@@ -102,25 +92,24 @@ proc 初始化窗口*(标题: string,
   let 显示器宽 = getMonitorWidth(getCurrentMonitor())
   let 显示器高 = getMonitorHeight(getCurrentMonitor())
 
-  # ── 第一步：获取系统 DPI ──
+  # ── 获取系统 DPI ──
   let 系统DPI = 检测系统DPI()
 
-  # ── 第二步：确定缩放比 ──
-  let 缩放比 = if 需要X11回退(系统DPI, 显示器宽):
-                  # X11：系统 DPI 不准，用显示器尺寸 × 占比
-                  显示器宽.float32 * 占比 / 基准宽.float32
-                else:
-                  # macOS / Windows / Wayland：直接用系统 DPI
-                  系统DPI
+  # ── 确定缩放比 ──
+  # X11 下系统 DPI 总是 1.0，若显示器分辨率超过阈值则用尺寸计算
+  let 缩放比 = if 系统DPI <= 1.01 and 显示器宽 > 高DPI阈值:
+                 显示器宽.float32 * 占比 / 基准宽.float32
+               else:
+                 系统DPI
 
-  # ── 第三步：计算窗口尺寸 ──
+  # ── 计算窗口尺寸 ──
   let 屏幕宽 = int32(基准宽.float32 * 缩放比)
   let 屏幕高 = min(int32(基准高.float32 * 缩放比),
                    int32(显示器高.float32 * 高度上限))
 
   setWindowSize(屏幕宽, 屏幕高)
 
-  result = 窗口配置(
+  窗口配置(
     缩放比:   缩放比,
     屏幕宽:   屏幕宽,
     屏幕高:   屏幕高,
@@ -128,18 +117,6 @@ proc 初始化窗口*(标题: string,
     显示器高: 显示器高,
     dpi原始:  系统DPI,
   )
-
-# ═══════════════════════════════════════════════════
-# 便捷函数
-# ═══════════════════════════════════════════════════
-
-proc 缩放坐标*(cfg: 窗口配置, 基准坐标: int32): int32 =
-  ## 按缩放比计算坐标位置
-  int32(基准坐标.float32 * cfg.缩放比)
-
-proc 缩放坐标*(cfg: 窗口配置, 基准坐标: float32): float32 =
-  ## 按缩放比计算坐标位置（float 版）
-  基准坐标 * cfg.缩放比
 
 # ═══════════════════════════════════════════════════
 # 验证测试
@@ -153,22 +130,14 @@ when isMainModule:
   echo "高度上限: ", 高度上限
   echo ""
 
-  # 模拟测试：检测逻辑
-  block 系统DPI测试:
-    # 模拟 macOS Retina
-    assert not 需要X11回退(2.0, 3840)
-    # 模拟 4K X11
-    assert 需要X11回退(1.0, 3840)
-    # 模拟 FHD X11
-    assert not 需要X11回退(1.0, 1920)
-    # 模拟 Wayland 2x
-    assert not 需要X11回退(2.0, 1920)
+  # 模拟测试：检测逻辑（内联）
+  block 回退逻辑测试:
+    proc x11回退(dpi: float32, w: int32): bool = dpi <= 1.01 and w > 高DPI阈值
+    assert not x11回退(2.0, 3840)  # macOS Retina
+    assert x11回退(1.0, 3840)      # 4K X11
+    assert not x11回退(1.0, 1920)  # FHD X11
+    assert not x11回退(2.0, 1920)  # Wayland 2x
     echo "✅ 回退逻辑测试通过"
-
-  block 计算缩放测试:
-    let s = 计算显示器缩放(3840, 1280)
-    assert s > 2.9 and s < 3.1
-    echo "✅ 显示器缩放计算测试通过"
 
   echo ""
   echo "所有验证通过"

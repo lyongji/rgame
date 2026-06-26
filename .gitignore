@@ -4,3 +4,11 @@ nimbledeps
 deps/
 nim.cfg
 
+# 编译产物 (与 .nim 同名的 ELF 二进制)
+genmesh
+conversions
+dpi
+h3球体
+point_sampler_demo
+rgame
+

@@ -15,3 +15,5 @@ requires "naylib"
 requires "vmath"
 requires "nimib"
 
+requires "https://github.com/lyongji/h3-nim"
+

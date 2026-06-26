@@ -6,7 +6,8 @@ const
   屏幕高度 = 450
   屏幕宽度 = 800
 
-  模型数量 = 9
+  模型数量 = 10      # 9 个标准 + 1 个可动态细分的四边形
+  最大细分 = 3       # 四边形网格最大细分级别 (1/2/3)
 
 proc memAlloc(size: uint32): pointer {.importc: "MemAlloc".}
 
@@ -56,6 +57,66 @@ proc 生成自定义网格(): Mesh =
   # 将网格数据从 CPU（RAM）上传到 GPU（VRAM）显存
   uploadMesh(result, false)
 
+# ═══════════════════════════════════════════════════
+# ═══════════════════════════════════════════════════
+# 四边形网格 — 支持动态细分 (1/2/3)
+# ═══════════════════════════════════════════════════
+
+proc 生成四边形网格*(细分: int32 = 1): Mesh =
+  ## 生成 N×N 细分四边形网格（默认 1×1），自动分配、填充并上传 GPU。
+  privateAccess(Mesh)
+  let 细分 = max(1, min(最大细分, 细分))
+  let 顶点数 = 细分 * 细分 * 6
+  let 三角形数 = 细分 * 细分 * 2
+  result = Mesh()
+  result.triangleCount = 三角形数
+  result.vertexCount = 顶点数
+  result.vertices = cast[typeof(result.vertices)](
+    memAlloc(uint32(顶点数 * 3 * sizeof(float32))))
+  result.texcoords = cast[typeof(result.texcoords)](
+    memAlloc(uint32(顶点数 * 2 * sizeof(float32))))
+  result.normals = cast[typeof(result.normals)](
+    memAlloc(uint32(顶点数 * 3 * sizeof(float32))))
+
+  let 步长 = 2.0 / 细分.float32
+  var vi: int32 = 0
+  for 行 in 0..<细分:
+    for 列 in 0..<细分:
+      let x0 = -1.0 + 列.float32 * 步长
+      let x1 = -1.0 + (列 + 1).float32 * 步长
+      let z0 = -1.0 + 行.float32 * 步长
+      let z1 = -1.0 + (行 + 1).float32 * 步长
+
+      # 三角形 1: (x0,z0) → (x0,z1) → (x1,z0)  [CCW]
+      result.vertices[vi*3] = x0; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z0
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 0; result.texcoords[vi*2+1] = 0
+      vi += 1
+      result.vertices[vi*3] = x0; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z1
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 0; result.texcoords[vi*2+1] = 1
+      vi += 1
+      result.vertices[vi*3] = x1; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z0
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 1; result.texcoords[vi*2+1] = 0
+      vi += 1
+
+      # 三角形 2: (x1,z0) → (x0,z1) → (x1,z1)  [CCW]
+      result.vertices[vi*3] = x1; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z0
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 1; result.texcoords[vi*2+1] = 0
+      vi += 1
+      result.vertices[vi*3] = x0; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z1
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 0; result.texcoords[vi*2+1] = 1
+      vi += 1
+      result.vertices[vi*3] = x1; result.vertices[vi*3+1] = 0; result.vertices[vi*3+2] = z1
+      result.normals[vi*3] = 0;   result.normals[vi*3+1] = 1;  result.normals[vi*3+2] = 0
+      result.texcoords[vi*2] = 1; result.texcoords[vi*2+1] = 1
+      vi += 1
+
+  uploadMesh(result, false)
+
 # ----------------------------------------------------------------------------------------
 # 程序主入口
 # ----------------------------------------------------------------------------------------
@@ -84,7 +145,6 @@ proc 主函数 =
   let 网格环结       = genMeshKnot(1, 2, 16, 128)
   let 网格多边形       = genMeshPoly(5, 2)
   let 网格自定义     = 生成自定义网格()
-
   # 从网格加载模型
   模型数组[0] = loadModelFromMesh(网格平面)
   模型数组[1] = loadModelFromMesh(网格立方体)
@@ -95,6 +155,11 @@ proc 主函数 =
   模型数组[6] = loadModelFromMesh(网格环结)
   模型数组[7] = loadModelFromMesh(网格多边形)
   模型数组[8] = loadModelFromMesh(网格自定义)
+  # 第10个插槽：手写四边形（同三角形一样的精确分配方式）
+  let 四边形网格 = 生成四边形网格()
+  模型数组[9] = loadModelFromMesh(四边形网格)
+
+  var 当前细分: int32 = 1
 
   # 生成的网格可以导出为 .obj 文件
   # discard exportMesh(模型数组[0].meshes[0], "plane.obj")
@@ -139,6 +204,21 @@ proc 主函数 =
       dec(当前模型索引)
       if 当前模型索引 < 0:
         当前模型索引 = 模型数量 - 1
+
+    # ── 四边形网格动态细分（按 1/2/3）──
+    if 当前模型索引 == 9:
+      let 新级别: int32 =
+        if isKeyPressed(One): 1
+        elif isKeyPressed(Two): 2
+        elif isKeyPressed(Three): 3
+        else: 0
+      if 新级别 > 0 and 新级别 != 当前细分:
+        当前细分 = 新级别
+        var 新网格 = 生成四边形网格(新级别)
+        模型数组[9] = loadModelFromMesh(新网格)
+        Model(模型数组[9]).materials[0].maps[MaterialMapIndex.Diffuse].texture = 纹理
+        # ponytail: loadModelFromMesh 不接管 Mesh 所有权, zeroMem 防止 =destroy 二次释放
+        zeroMem(addr 新网格, sizeof(新网格))
     # ------------------------------------------------------------------------------------
     # 绘制
     # ------------------------------------------------------------------------------------
@@ -168,6 +248,9 @@ proc 主函数 =
       绘制文本(字体, "多边形", Vector2(x: 980, y: 10), 64, 1, DarkBlue)
     of 8:
       绘制文本(字体, "自定义（三角形）", Vector2(x: 980, y: 10), 64, 1, DarkBlue)
+    of 9:
+      绘制文本(字体, "四边形（细分: " & $当前细分 & "）", Vector2(x: 980, y: 10), 64, 1, DarkBlue)
+      绘制文本(字体, "按 1/2/3 切换细分", Vector2(x: 40, y: 60), 64, 1, Maroon)
     else:
       discard
     endDrawing()
